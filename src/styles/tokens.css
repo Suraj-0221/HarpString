@@ -1,0 +1,49 @@
+/* Air Harp Revision 2 Design Tokens */
+:root {
+  /* Surfaces & Backgrounds */
+  --bg: #0B0B0C;
+  --surface: #121214;
+  --surface-raised: #18181B;
+
+  /* Hairlines */
+  --border-hairline: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Typography Colors */
+  --text-primary: #ECECEA;
+  --text-secondary: #9A9A96;
+  --text-tertiary: #62625F;
+
+  /* Single Accent: Acid Lime */
+  --accent: #D8FF3E;
+  --accent-text: #0B0B0C;
+  --accent-muted: rgba(216, 255, 62, 0.15);
+
+  /* Geometry & Radii */
+  --radius-control: 2px;
+  --radius-panel: 4px;
+
+  /* Spacing Scale (Only 4, 8, 12, 16, 24, 32, 48 px) */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  /* Font Families */
+  --font-ui: "Instrument Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* Transitions */
+  --transition-fast: 120ms cubic-bezier(0.2, 0, 0, 1);
+  --transition-panel: 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition-panel: 0ms;
+  }
+}

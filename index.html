@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Air Harp</title>
+  <meta name="theme-color" content="#0B0B0C">
+  <meta name="description" content="Play strings in the air with webcam hand tracking.">
+
+  <!-- Favicon: Single diagonal line with two end-caps in acid lime #D8FF3E -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230B0B0C'/%3E%3Cline x1='6' y1='26' x2='26' y2='6' stroke='%23D8FF3E' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='6' cy='26' r='3' fill='%23ECECEA'/%3E%3Ccircle cx='26' cy='6' r='3' fill='%23ECECEA'/%3E%3C/svg%3E">
+
+  <!-- Fonts: Instrument Sans & IBM Plex Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="./src/styles/app.css">
+</head>
+<body>
+  <video id="webcam-video" playsinline></video>
+  <canvas id="harp-canvas"></canvas>
+
+  <!-- Top Accent Loading Line -->
+  <div id="top-loader"></div>
+
+  <!-- Stage UI (Dims to 25% opacity after 3s of inactivity) -->
+  <div id="stage-ui">
+    <!-- Top Bar (48px height) -->
+    <header id="top-bar">
+      <div class="top-bar-left">
+        <span class="wordmark">AIR HARP</span>
+      </div>
+      <div class="top-bar-right">
+        <span id="status-instrument" class="status-badge">HARP</span>
+        <span id="status-key" class="status-badge">C MINOR</span>
+        <button id="btn-mute" class="btn-top" aria-label="Toggle sound mute">MUTE</button>
+        <button id="btn-settings-toggle" class="btn-top" aria-label="Open settings drawer">SETTINGS</button>
+        <button id="btn-fullscreen" class="btn-top" aria-label="Toggle fullscreen display">FULLSCREEN</button>
+      </div>
+    </header>
+
+    <!-- Left Edge: Vertical NOW PLAYING Readout -->
+    <aside id="now-playing" aria-label="Currently sounding note">
+      <div class="now-playing-label">NOW PLAYING</div>
+      <div id="now-playing-note" class="now-playing-note">--</div>
+      <div class="level-meter" aria-hidden="true">
+        <div class="meter-bar"></div>
+        <div class="meter-bar"></div>
+        <div class="meter-bar"></div>
+        <div class="meter-bar"></div>
+        <div class="meter-bar"></div>
+        <div class="meter-bar"></div>
+        <div class="meter-bar"></div>
+        <div class="meter-bar"></div>
+      </div>
+    </aside>
+
+    <!-- Bottom-Left: Hand Status & Stats -->
+    <div id="hand-status">SHOW YOUR HANDS</div>
+    <div id="stats-display">60 FPS / 0 STRINGS</div>
+
+    <!-- Instant Start Hint -->
+    <div id="instant-hint">Pinch both hands to stretch a string, release to lock.</div>
+
+    <!-- Bottom Dock (Centered, hairline border, surface background) -->
+    <nav id="bottom-dock" aria-label="Stage controls">
+      <!-- Instrument selector (Segmented control) -->
+      <div class="segmented-group" role="tablist" aria-label="Instrument sound preset">
+        <button class="segmented-btn active" data-instrument="HARP" role="tab" aria-selected="true">HARP</button>
+        <button class="segmented-btn" data-instrument="KOTO" role="tab" aria-selected="false">KOTO</button>
+        <button class="segmented-btn" data-instrument="GUITAR" role="tab" aria-selected="false">GUITAR</button>
+        <button class="segmented-btn" data-instrument="GLASS" role="tab" aria-selected="false">GLASS</button>
+        <button class="segmented-btn" data-instrument="BASS" role="tab" aria-selected="false">BASS</button>
+      </div>
+
+      <!-- Action buttons -->
+      <button id="btn-layout-presets" class="dock-btn" title="Cycle string layout presets (HARP, FAN, GRID)">
+        LAYOUT
+      </button>
+
+      <button id="btn-undo" class="dock-btn" title="Remove the latest string (Z)">
+        UNDO
+      </button>
+
+      <button id="btn-clear" class="dock-btn" title="Clear all strings (C)">
+        CLEAR
+      </button>
+
+      <!-- Record clip button -->
+      <button id="btn-record-clip" class="dock-btn" title="Record 10s video clip">
+        REC CLIP
+      </button>
+    </nav>
+  </div>
+
+  <!-- Settings Drawer (320px wide, right side, hairline border) -->
+  <aside id="settings-drawer" aria-label="Instrument settings drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">SETTINGS</span>
+      <button id="btn-close-drawer" class="drawer-close" aria-label="Close drawer">ESC</button>
+    </div>
+
+    <!-- Section: Tuning & Audio -->
+    <div class="drawer-section">
+      <div class="drawer-section-title">TUNING &amp; AUDIO</div>
+
+      <div class="drawer-group">
+        <div class="drawer-label">ROOT KEY</div>
+        <select id="drawer-key-select" class="drawer-select">
+          <option value="C">C</option>
+          <option value="C#">C# / Db</option>
+          <option value="D">D</option>
+          <option value="D#">D# / Eb</option>
+          <option value="E">E</option>
+          <option value="F">F</option>
+          <option value="F#">F# / Gb</option>
+          <option value="G">G</option>
+          <option value="G#">G# / Ab</option>
+          <option value="A">A</option>
+          <option value="A#">A# / Bb</option>
+          <option value="B">B</option>
+        </select>
+      </div>
+
+      <div class="drawer-group">
+        <div class="drawer-label">MUSICAL SCALE</div>
+        <select id="drawer-scale-select" class="drawer-select">
+          <option value="c_minor">C Natural Minor (Eb Major)</option>
+          <option value="major_pentatonic">Major Pentatonic</option>
+          <option value="minor_pentatonic">Minor Pentatonic</option>
+          <option value="major">Major (Ionian)</option>
+          <option value="chromatic">Chromatic</option>
+          <option value="free">Free (Continuous)</option>
+        </select>
+      </div>
+
+      <div class="drawer-toggle">
+        <label for="toggle-drone-pad">Root drone pad</label>
+        <input type="checkbox" id="toggle-drone-pad">
+      </div>
+
+      <div class="drawer-group">
+        <div class="drawer-label">
+          <span>VOLUME</span>
+          <span id="slider-master-volume-val" class="val">80</span>
+        </div>
+        <input type="range" id="slider-master-volume" class="drawer-slider" min="0" max="1" step="0.05" value="0.8">
+      </div>
+
+      <div class="drawer-group">
+        <div class="drawer-label">
+          <span>REVERB</span>
+          <span id="slider-reverb-val" class="val">25</span>
+        </div>
+        <input type="range" id="slider-reverb" class="drawer-slider" min="0" max="0.8" step="0.05" value="0.25">
+      </div>
+    </div>
+
+    <!-- Section: Stage & Visuals -->
+    <div class="drawer-section">
+      <div class="drawer-section-title">STAGE &amp; VISION</div>
+
+      <div class="drawer-group">
+        <div class="drawer-label">STAGE THEME</div>
+        <select id="drawer-theme-select" class="drawer-select">
+          <option value="NEON">Neon Light</option>
+          <option value="INK">Monochrome Ink</option>
+          <option value="AURORA">Boreal Aurora</option>
+          <option value="EMBER">Deep Ember</option>
+        </select>
+      </div>
+
+      <div class="drawer-group">
+        <div class="drawer-label">
+          <span>VIDEO DIM</span>
+          <span id="slider-video-dim-val" class="val">100%</span>
+        </div>
+        <input type="range" id="slider-video-dim" class="drawer-slider" min="0" max="1" step="0.05" value="1.0">
+      </div>
+
+      <div class="drawer-toggle">
+        <label for="toggle-show-stats">Show telemetry stats</label>
+        <input type="checkbox" id="toggle-show-stats">
+      </div>
+    </div>
+
+    <!-- Section: Gestures & Shortcuts -->
+    <div class="drawer-section">
+      <div class="drawer-section-title">GESTURES &amp; SHORTCUTS</div>
+      <div class="drawer-meta-line">
+        Two-Hand Pinch: Stretch &amp; Lock String<br>
+        Fist in Air: Delete Nearest String<br>
+        Swipe Left/Right: Switch Instrument<br>
+        Clap Hands: Switch Visual Theme<br>
+        H: Skeleton Overlay &bull; C: Clear All &bull; Z: Undo &bull; F: Fullscreen &bull; Space: Mute
+      </div>
+    </div>
+  </aside>
+
+  <!-- Start Screen (Exact B4 Specification) -->
+  <div id="start-screen">
+    <div class="start-layout">
+      <!-- Left Column -->
+      <div class="start-content">
+        <div class="start-mono-label">AIR HARP</div>
+        <h1 class="start-headline">Play strings in the air.</h1>
+        <p class="start-description">Stretch a string between two pinched hands. Pluck it with a fingertip.</p>
+
+        <div class="start-divider"></div>
+
+        <div class="start-steps">
+          <div class="start-step-row">
+            <span class="start-step-idx">01</span>
+            <span class="start-step-text">Pinch with both hands and pull apart.</span>
+          </div>
+          <div class="start-step-row">
+            <span class="start-step-idx">02</span>
+            <span class="start-step-text">Release to leave the string in place.</span>
+          </div>
+          <div class="start-step-row">
+            <span class="start-step-idx">03</span>
+            <span class="start-step-text">Flick a fingertip through it.</span>
+          </div>
+        </div>
+
+        <button id="btn-start-camera" class="btn-start-primary">
+          Start camera
+        </button>
+
+        <div class="start-privacy">Video stays on this device.</div>
+        <div class="start-footer">Works best in Chrome. Needs a webcam.</div>
+      </div>
+
+      <!-- Right Column: Looping 6-Second Vector Demo -->
+      <div class="start-demo-container">
+        <canvas id="demo-canvas" width="360" height="240" aria-label="Looping gesture demonstration"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Banner -->
+  <div id="error-banner">
+    <span id="error-banner-text">Camera access blocked.</span>
+    <button id="btn-error-retry" class="btn-top">Try again</button>
+  </div>
+
+  <!-- Minimal Bottom-Left Toast Notifications -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
