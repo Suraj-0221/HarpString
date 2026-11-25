@@ -1,49 +1,66 @@
-/* Air Harp Revision 2 Design Tokens */
-:root {
-  /* Surfaces & Backgrounds */
-  --bg: #0B0B0C;
-  --surface: #121214;
-  --surface-raised: #18181B;
+/* Air Harp Design Tokens
+   Warm, hand-crafted aesthetic: "a small stage with a warm light on it".
+   Human typography, calm tactile controls, dynamic crossfading accent. */
 
-  /* Hairlines */
-  --border-hairline: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
+:root {
+  /* Surfaces */
+  --bg: #16130F;
+  --surface: #1F1B16;
+  --surface-raised: #2A251E;
+  --border-hairline: rgba(242, 235, 221, 0.10);
+  --border-strong: rgba(242, 235, 221, 0.20);
 
   /* Typography Colors */
-  --text-primary: #ECECEA;
-  --text-secondary: #9A9A96;
-  --text-tertiary: #62625F;
+  --text-primary: #F2EBDD;
+  --text-secondary: #A89F90;
+  --text-tertiary: #6F685C;
 
-  /* Single Accent: Acid Lime */
-  --accent: #D8FF3E;
-  --accent-text: #0B0B0C;
-  --accent-muted: rgba(216, 255, 62, 0.15);
+  /* Dynamic Theme Accent (default NEON: #F58BC4) */
+  --accent: #F58BC4;
+  --accent-rgb: 245, 139, 196;
 
-  /* Geometry & Radii */
-  --radius-control: 2px;
-  --radius-panel: 4px;
+  /* Radii */
+  --radius-btn: 8px;
+  --radius-panel: 14px;
+  --radius-circle: 50%;
 
-  /* Spacing Scale (Only 4, 8, 12, 16, 24, 32, 48 px) */
+  /* Soft shadow for floating panels */
+  --shadow-panel: 0 10px 40px rgba(0, 0, 0, 0.38);
+
+  /* Typography */
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-ui: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+
+  /* Scale: 13 / 15 / 17 / 22 / 34 / 64 */
+  --text-xs: 13px;
+  --text-sm: 15px;
+  --text-base: 17px;
+  --text-lg: 22px;
+  --text-xl: 34px;
+  --text-display: 64px;
+
+  /* Spacing Scale: 4 / 8 / 12 / 16 / 24 / 40 / 64 */
   --space-4: 4px;
   --space-8: 8px;
   --space-12: 12px;
   --space-16: 16px;
   --space-24: 24px;
-  --space-32: 32px;
-  --space-48: 48px;
+  --space-40: 40px;
+  --space-64: 64px;
 
-  /* Font Families */
-  --font-ui: "Instrument Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
-
-  /* Transitions */
-  --transition-fast: 120ms cubic-bezier(0.2, 0, 0, 1);
-  --transition-panel: 240ms cubic-bezier(0.2, 0, 0, 1);
+  /* Motion */
+  --transition-fast: 160ms cubic-bezier(0, 0, 0.2, 1);
+  --transition-panel: 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-spring: 360ms cubic-bezier(0.34, 1.25, 0.64, 1);
+  --transition-accent: color 600ms ease, background-color 600ms ease, border-color 600ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --transition-fast: 0ms;
     --transition-panel: 0ms;
+    --transition-spring: 0ms;
+    --transition-accent: none;
   }
 }

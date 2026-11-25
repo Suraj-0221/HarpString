@@ -1,4 +1,4 @@
-// Physical Resonance Visual Effects System for Air Harp (Revision 2)
+// Physical Resonance Visual Effects System for Air Harp
 // Replaces firework sparks with physical wave mechanics: traveling pulses,
 // end-cap reflection flashes, expanding pluck ripples, and rising note labels.
 

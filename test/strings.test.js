@@ -82,7 +82,7 @@ describe('Strings Geometry & Physics Unit Tests', () => {
 
   it('cancels preview if string is too short (< 80px)', () => {
     const mockAudioEngine = {
-      mapLengthToPitch: () => ({ frequency: 500, noteName: 'B4' }),
+      mapLengthToPitch: () => ({ frequency: 500, noteName: 'E5' }),
       playLockPop: () => {},
     };
 

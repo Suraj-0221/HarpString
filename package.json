@@ -13,6 +13,7 @@
     "@mediapipe/tasks-vision": "0.10.14"
   },
   "devDependencies": {
+    "playwright": "^1.65.1",
     "vite": "^5.4.2",
     "vitest": "^2.1.9"
   }

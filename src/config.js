@@ -1,4 +1,4 @@
-// Configuration for Air Harp (Revision 2)
+// Configuration for Air Harp
 // Every tunable value in one central location
 
 export const CONFIG = {
@@ -63,12 +63,12 @@ export const CONFIG = {
     noteLabelDurationMs: 600,
   },
   SKELETON: {
-    boneColor: '#22c55e',
-    boneWidth: 3,
-    jointColor: '#dc2626',
-    jointRadius: 4,
-    ringColor: '#ffffff',
-    ringRadius: 7,
+    boneColor: 'rgba(242, 235, 221, 0.55)',
+    boneWidth: 1.5,
+    jointColor: 'rgba(242, 235, 221, 0.80)',
+    jointRadius: 2.5,
+    ringColor: '#F58BC4',
+    ringRadius: 5,
     showSkeleton: true,
   },
   AUDIO: {

@@ -1,4 +1,4 @@
-// Canvas 2D Renderer for Air Harp (Revision 2)
+// Canvas 2D Renderer for Air Harp
 // Mirrored Webcam -> Strings (with afterimages & pulse swell) -> Resonance Effects -> Skeleton
 
 import { CONFIG } from './config.js';
@@ -61,10 +61,11 @@ export class Renderer {
     ctx.save();
     ctx.clearRect(0, 0, width, height);
 
+    const currentTheme = themeManager ? themeManager.getCurrentTheme() : null;
+
     if (video && video.readyState >= 2) {
-      const currentTheme = themeManager ? themeManager.getCurrentTheme() : null;
-      const dim = themeManager ? themeManager.videoDim : 1.0;
-      ctx.filter = currentTheme ? currentTheme.videoFilter(dim * 100) : `brightness(85%)`;
+      const dim = themeManager ? themeManager.videoDim : 0.75;
+      ctx.filter = currentTheme ? currentTheme.videoFilter(dim * 100) : `brightness(75%)`;
 
       if (this.isMirrored) {
         ctx.translate(width, 0);
@@ -75,12 +76,15 @@ export class Renderer {
         ctx.drawImage(video, transform.renderX, transform.renderY, transform.renderWidth, transform.renderHeight);
       }
     } else {
-      ctx.fillStyle = '#0B0B0C';
+      ctx.fillStyle = '#16130F';
       ctx.fillRect(0, 0, width, height);
     }
     ctx.restore();
 
-    // Sound-reactive audio breathing level (C6)
+    // Radial vignette (35% dark at edges) and gentle color grade
+    this.drawVignetteAndGrading(ctx, width, height, currentTheme);
+
+    // Sound-reactive audio breathing level
     const audioLevel = audioEngine ? audioEngine.getMasterLevel() : 0;
 
     // 2. All Strings (Additive neon glow)
@@ -111,8 +115,34 @@ export class Renderer {
 
     // 5. Hand Skeleton Overlay
     if (this.showSkeleton && handResults && handResults.length > 0) {
-      this.drawSkeleton(ctx, handResults);
+      this.drawSkeleton(ctx, handResults, themeManager);
     }
+  }
+
+  drawVignetteAndGrading(ctx, width, height, currentTheme) {
+    ctx.save();
+    // Radial vignette: 35% dark at edges
+    const radius = Math.hypot(width, height) * 0.55;
+    const grad = ctx.createRadialGradient(width * 0.5, height * 0.5, radius * 0.35, width * 0.5, height * 0.5, radius);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Color grade matching theme: warm for EMBER, cool for AURORA, desaturated for INK
+    if (currentTheme) {
+      if (currentTheme.name === 'EMBER') {
+        ctx.fillStyle = 'rgba(255, 120, 40, 0.05)';
+        ctx.fillRect(0, 0, width, height);
+      } else if (currentTheme.name === 'AURORA') {
+        ctx.fillStyle = 'rgba(80, 220, 200, 0.05)';
+        ctx.fillRect(0, 0, width, height);
+      } else if (currentTheme.name === 'INK') {
+        ctx.fillStyle = 'rgba(242, 235, 221, 0.03)';
+        ctx.fillRect(0, 0, width, height);
+      }
+    }
+    ctx.restore();
   }
 
   drawHarpString(ctx, str, wavePointsCount, effectsManager, audioLevel = 0) {
@@ -318,15 +348,20 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawSkeleton(ctx, handResults) {
+  drawSkeleton(ctx, handResults, themeManager) {
     ctx.save();
+    const currentTheme = themeManager ? themeManager.getCurrentTheme() : null;
+    const accent = currentTheme ? currentTheme.accent : '#F58BC4';
+
     for (let h = 0; h < handResults.length; h++) {
-      const lms = handResults[h].landmarks;
+      const hand = handResults[h];
+      const lms = hand.landmarks;
       if (!lms || lms.length < 21) continue;
 
+      // Bones: 1.5px, rgba(242, 235, 221, 0.55)
       ctx.beginPath();
-      ctx.strokeStyle = CONFIG.SKELETON.boneColor || '#22c55e';
-      ctx.lineWidth = CONFIG.SKELETON.boneWidth || 3;
+      ctx.strokeStyle = 'rgba(242, 235, 221, 0.55)';
+      ctx.lineWidth = 1.5;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
@@ -337,23 +372,43 @@ export class Renderer {
       }
       ctx.stroke();
 
-      ctx.fillStyle = CONFIG.SKELETON.jointColor || '#dc2626';
+      // Joints: 2.5px dots, rgba(242, 235, 221, 0.80)
+      ctx.fillStyle = 'rgba(242, 235, 221, 0.80)';
       for (let i = 0; i < 21; i++) {
+        if (i === 4 || i === 8) continue; // tips filled with accent
         ctx.beginPath();
-        ctx.arc(lms[i].x, lms[i].y, CONFIG.SKELETON.jointRadius || 4, 0, Math.PI * 2);
+        ctx.arc(lms[i].x, lms[i].y, 2.5, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      ctx.strokeStyle = CONFIG.SKELETON.ringColor || '#ffffff';
-      ctx.lineWidth = 2;
+      // Thumb tip [4] and Index tip [8]: filled with accent
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(lms[4].x, lms[4].y, 4, 0, Math.PI * 2);
+      ctx.fill();
 
       ctx.beginPath();
-      ctx.arc(lms[4].x, lms[4].y, CONFIG.SKELETON.ringRadius || 7, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.arc(lms[8].x, lms[8].y, 4, 0, Math.PI * 2);
+      ctx.fill();
 
-      ctx.beginPath();
-      ctx.arc(lms[8].x, lms[8].y, CONFIG.SKELETON.ringRadius || 7, 0, Math.PI * 2);
-      ctx.stroke();
+      // Pinch feedback: thin ring around pinch point that tightens as pinch closes
+      if (hand.pinchPoint) {
+        const ratio = hand.pinchRatio !== undefined ? hand.pinchRatio : 0.5;
+        const radius = Math.max(6, Math.min(22, ratio * 40));
+        ctx.beginPath();
+        ctx.strokeStyle = hand.isPinching ? accent : 'rgba(242, 235, 221, 0.4)';
+        ctx.lineWidth = hand.isPinching ? 2 : 1;
+        ctx.arc(hand.pinchPoint.x, hand.pinchPoint.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        if (hand.isPinching) {
+          ctx.beginPath();
+          ctx.arc(hand.pinchPoint.x, hand.pinchPoint.y, radius + 3, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(242, 235, 221, 0.2)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
     }
     ctx.restore();
   }

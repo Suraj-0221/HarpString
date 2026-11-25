@@ -20,6 +20,12 @@ export function distToSegment(p, a, b) {
   return Math.hypot(p.x - projX, p.y - projY);
 }
 
+// Velocity falloff calculation for strumming multiple strings within 150ms
+export function calculateStrumFalloff(baseStrength, recentPluckCount) {
+  const falloff = Math.max(0.45, 1.0 - recentPluckCount * 0.12);
+  return baseStrength * falloff;
+}
+
 // 2D segment-segment intersection
 export function checkSegmentIntersection(p1, p2, p3, p4) {
   const d1x = p2.x - p1.x;
@@ -197,6 +203,8 @@ export class StringManager {
     this.activeDrag = null;
     this.history = [];
     this.themeConfig = null;
+    this.pluckWithAllFingers = true;
+    this.recentPluckTimestamps = [];
   }
 
   setTheme(themeConfig, canvasWidth, canvasHeight) {
@@ -350,63 +358,92 @@ export class StringManager {
     const debounceMs = CONFIG.GESTURES.pluckDebounceMs || 120;
     let plucksInFrame = 0;
 
+    // Prune plucks older than 150ms for strum velocity falloff
+    this.recentPluckTimestamps = this.recentPluckTimestamps.filter(t => timestamp - t < 150);
+
     for (const hand of handResults) {
       if (hand.isPinching) {
-        this.prevFingerPositions.set(hand.handedness, { x: hand.indexTip.x, y: hand.indexTip.y });
+        // Pinching hands are drawing or dragging, not plucking
+        if (hand.landmarks && this.pluckWithAllFingers) {
+          [4, 8, 12, 16, 20].forEach(tipIdx => {
+            const key = `${hand.handedness}_${tipIdx}`;
+            const pt = hand.landmarks[tipIdx];
+            if (pt) this.prevFingerPositions.set(key, { x: pt.x, y: pt.y });
+          });
+        } else {
+          this.prevFingerPositions.set(hand.handedness, { x: hand.indexTip.x, y: hand.indexTip.y });
+        }
         continue;
       }
 
-      const prevPos = this.prevFingerPositions.get(hand.handedness);
-      const currPos = hand.indexTip;
+      // Determine tips to evaluate
+      const tipsToCheck = [];
+      if (this.pluckWithAllFingers && hand.landmarks && hand.landmarks.length >= 21) {
+        [4, 8, 12, 16, 20].forEach(tipIdx => {
+          const pt = hand.landmarks[tipIdx];
+          if (pt) tipsToCheck.push({ key: `${hand.handedness}_${tipIdx}`, pt });
+        });
+      } else {
+        tipsToCheck.push({ key: hand.handedness, pt: hand.indexTip });
+      }
 
-      if (prevPos) {
-        const fingerDist = Math.hypot(currPos.x - prevPos.x, currPos.y - prevPos.y);
+      for (const { key, pt: currPos } of tipsToCheck) {
+        const prevPos = this.prevFingerPositions.get(key);
 
-        if (fingerDist > 1.5) {
-          for (const str of this.strings) {
-            if (str.isDeleting || str.drawOnProgress < 0.8) continue;
-            if (timestamp - str.lastPluckTime < debounceMs) continue;
+        if (prevPos) {
+          const fingerDist = Math.hypot(currPos.x - prevPos.x, currPos.y - prevPos.y);
 
-            const hit = checkSegmentIntersection(prevPos, currPos, str.a, str.b);
-            if (hit) {
-              plucksInFrame++;
-              const speedPx = fingerDist;
-              const strength = Math.max(
-                CONFIG.AUDIO.minStrength || 0.15,
-                Math.min(CONFIG.AUDIO.maxStrength || 1.0, speedPx / (CONFIG.AUDIO.speedNormPx || 40))
-              );
+          // Must be moving faster than threshold across string
+          if (fingerDist > 1.8) {
+            for (const str of this.strings) {
+              if (str.isDeleting || str.drawOnProgress < 0.8) continue;
+              if (timestamp - str.lastPluckTime < debounceMs) continue;
 
-              str.triggerPluck(strength, hit.tString, timestamp);
+              const hit = checkSegmentIntersection(prevPos, currPos, str.a, str.b);
+              if (hit) {
+                plucksInFrame++;
+                const speedPx = fingerDist;
+                const baseStrength = Math.max(
+                  CONFIG.AUDIO.minStrength || 0.15,
+                  Math.min(CONFIG.AUDIO.maxStrength || 1.0, speedPx / (CONFIG.AUDIO.speedNormPx || 40))
+                );
 
-              const panX = hit.point.x / Math.max(1, canvasWidth);
-              this.audioEngine.pluck(str.id, str.frequency, strength, hit.tString, panX);
+                // Open-hand strum: falloff slightly for each additional string crossed within 150ms
+                const strength = calculateStrumFalloff(baseStrength, this.recentPluckTimestamps.length);
+                this.recentPluckTimestamps.push(timestamp);
 
-              if (effectsManager) {
-                effectsManager.onPluck(str, hit.tString, strength);
-              }
+                str.triggerPluck(strength, hit.tString, timestamp);
 
-              // Sympathetic Resonance
-              for (const other of this.strings) {
-                if (other.id === str.id) continue;
-                const ratio = other.frequency / str.frequency;
-                const isOctave = Math.abs(ratio - 2.0) < 0.06 || Math.abs(ratio - 0.5) < 0.03;
-                const isFifth = Math.abs(ratio - 1.5) < 0.05 || Math.abs(ratio - 0.667) < 0.03;
+                const panX = hit.point.x / Math.max(1, canvasWidth);
+                this.audioEngine.pluck(str.id, str.frequency, strength, hit.tString, panX);
 
-                if (isOctave || isFifth) {
-                  other.triggerSympathetic();
-                  this.audioEngine.playSympatheticTone(other.frequency);
+                if (effectsManager) {
+                  effectsManager.onPluck(str, hit.tString, strength);
                 }
-              }
 
-              if (onPluckCallback) {
-                onPluckCallback(str, hit.tString, strength, plucksInFrame);
+                // Sympathetic Resonance
+                for (const other of this.strings) {
+                  if (other.id === str.id) continue;
+                  const ratio = other.frequency / str.frequency;
+                  const isOctave = Math.abs(ratio - 2.0) < 0.06 || Math.abs(ratio - 0.5) < 0.03;
+                  const isFifth = Math.abs(ratio - 1.5) < 0.05 || Math.abs(ratio - 0.667) < 0.03;
+
+                  if (isOctave || isFifth) {
+                    other.triggerSympathetic();
+                    this.audioEngine.playSympatheticTone(other.frequency);
+                  }
+                }
+
+                if (onPluckCallback) {
+                  onPluckCallback(str, hit.tString, strength, plucksInFrame);
+                }
               }
             }
           }
         }
-      }
 
-      this.prevFingerPositions.set(hand.handedness, { x: currPos.x, y: currPos.y });
+        this.prevFingerPositions.set(key, { x: currPos.x, y: currPos.y });
+      }
     }
   }
 

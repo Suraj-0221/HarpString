@@ -1,4 +1,4 @@
-// Web Audio Engine for Air Harp (Revision 2)
+// Web Audio Engine for Air Harp
 // Polyphonic Karplus-Strong plucked string synthesizer with acoustic presets,
 // continuous scale snapping, sympathetic resonance tones, master AnalyserNode,
 // and background drone pad on root pitch.
@@ -422,21 +422,35 @@ export class AudioEngine {
 
     const preset = this.instrumentPreset;
     const decayTime = decayOverride || (preset ? preset.decayTime : CONFIG.AUDIO.stringDecayTime) || 3.0;
-    const brightness = preset ? preset.brightness : 0.55;
+    const baseBrightness = preset ? preset.brightness : 0.55;
     const inharmonicity = preset ? (preset.inharmonicity || 0.0) : 0.0;
 
-    if (this.hasWorklet && voice.node) {
-      voice.node.port.postMessage({
-        type: 'trigger',
-        frequency,
-        strength: clampedStrength,
-        pluckPosition,
-        decayTime,
-        brightness,
-        inharmonicity,
-      });
+    // 3.4 Human Sound: +/-2 cents pitch, +/-8% brightness, 0-4ms timing jitter
+    const pitchCents = (Math.random() * 4 - 2);
+    const humanFreq = frequency * Math.pow(2, pitchCents / 1200);
+    const humanBrightness = Math.max(0.05, Math.min(0.95, baseBrightness * (1.0 + (Math.random() * 0.16 - 0.08))));
+    const timingJitterMs = Math.random() * 4;
+
+    const triggerAction = () => {
+      if (this.hasWorklet && voice.node) {
+        voice.node.port.postMessage({
+          type: 'trigger',
+          frequency: humanFreq,
+          strength: clampedStrength,
+          pluckPosition,
+          decayTime,
+          brightness: humanBrightness,
+          inharmonicity,
+        });
+      } else {
+        this.playFallbackPluck(voice, humanFreq, clampedStrength, decayTime, pluckPosition);
+      }
+    };
+
+    if (timingJitterMs > 0.5) {
+      setTimeout(triggerAction, timingJitterMs);
     } else {
-      this.playFallbackPluck(voice, frequency, clampedStrength, decayTime, pluckPosition);
+      triggerAction();
     }
 
     setTimeout(() => {

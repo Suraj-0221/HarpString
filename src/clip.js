@@ -1,4 +1,4 @@
-// Clip Capture System for Air Harp (Revision 2)
+// Clip Capture System for Air Harp
 // Records 10-second clips from canvas and audio stream, saving as webm without countdowns.
 
 export class ClipRecorder {
