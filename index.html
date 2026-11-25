@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Air Harp</title>
+  <meta name="theme-color" content="#16130F">
+  <meta name="description" content="Play the air. Real-time spatial string instrument powered by webcam hand tracking.">
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231F1B16'/%3E%3Cline x1='8' y1='24' x2='24' y2='8' stroke='%23F58BC4' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='24' r='3' fill='%23F2EBDD'/%3E%3Ccircle cx='24' cy='8' r='3' fill='%23F2EBDD'/%3E%3C/svg%3E">
+
+  <!-- Google Fonts: Instrument Serif, Hanken Grotesk, IBM Plex Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+  <script type="module" crossorigin src="./assets/index-Bgd4o55j.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-D2QrLzO7.css">
+</head>
+<body>
+  <video id="webcam-video" playsinline></video>
+  <canvas id="harp-canvas"></canvas>
+
+  <!-- Stage Overlays -->
+  <div id="stage-ui">
+    <!-- Top Bar -->
+    <header id="top-bar">
+      <div class="top-bar-left">
+        <span class="wordmark">Air Harp</span>
+      </div>
+
+      <div class="top-bar-center">
+        <!-- Sound Sheet Opener Chip -->
+        <button id="chip-sound-sheet" class="sound-chip" aria-label="Open sound settings">
+          <span class="chip-dot"></span>
+          <span id="chip-sound-label" class="chip-label">Harp · C minor</span>
+        </button>
+      </div>
+
+      <div class="top-bar-right">
+        <button id="btn-sound-toggle" class="btn-icon" aria-label="Toggle mute" title="Mute or unmute (Space)">
+          <!-- Dynamic SVG injected via JS -->
+        </button>
+        <button id="btn-menu-toggle" class="btn-icon" aria-label="Open menu drawer" title="Settings and collected items">
+          <!-- Dynamic SVG injected via JS -->
+        </button>
+      </div>
+    </header>
+
+    <!-- Challenge Mode Top HUD -->
+    <div id="challenge-hud" class="challenge-hud hidden" aria-live="polite">
+      <div class="hud-item">
+        <span class="hud-label">Score</span>
+        <span id="challenge-score" class="hud-val">0</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Combo</span>
+        <span id="challenge-combo" class="hud-val accent">x0</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Time</span>
+        <span id="challenge-time" class="hud-val">30</span>
+      </div>
+    </div>
+
+    <!-- Onboarding Context Coach Card -->
+    <div id="coach-container" class="coach-container hidden" aria-live="polite"></div>
+
+    <!-- Soft Missing Hands Prompt (shown after 2s without hands) -->
+    <div id="missing-hands-prompt" class="missing-hands-prompt hidden">
+      Hold both hands up where the camera can see them.
+    </div>
+
+    <!-- Hand Tracking Status Indicator (Bottom-Left) -->
+    <div id="hand-presence-indicator" class="hand-presence" aria-label="Hand tracking presence">
+      <span id="hand-dot-left" class="hand-dot" title="Left hand"></span>
+      <span id="hand-dot-right" class="hand-dot" title="Right hand"></span>
+    </div>
+
+    <!-- Optional Floating Telemetry Stats (Toggled in Look menu) -->
+    <div id="stats-display" class="stats-display hidden">60 FPS · 0 strings</div>
+
+    <!-- Bottom Dock -->
+    <nav id="bottom-dock" class="bottom-dock" aria-label="Stage controls">
+      <!-- Mode Switch Segmented Control with Sliding Pill Indicator -->
+      <div class="mode-switch" role="tablist" aria-label="Stage mode">
+        <div id="mode-sliding-pill" class="mode-sliding-pill"></div>
+        <button class="mode-tab active" data-mode="PLAY" role="tab" aria-selected="true">Play</button>
+        <button class="mode-tab" data-mode="SONGS" role="tab" aria-selected="false">Songs</button>
+        <button class="mode-tab" data-mode="CHALLENGE" role="tab" aria-selected="false">Challenge</button>
+        <button class="mode-tab" data-mode="LOOP" role="tab" aria-selected="false">Loop</button>
+      </div>
+
+      <div class="dock-divider"></div>
+
+      <!-- Action Tool Buttons -->
+      <div class="dock-tools">
+        <button id="btn-layout" class="btn-dock-icon" title="Layout preset (Harp, Fan, Grid)" aria-label="Change layout"></button>
+        <button id="btn-vibes" class="btn-dock-icon" title="Vibes — cycle curated moods" aria-label="Cycle vibes"></button>
+        <button id="btn-undo" class="btn-dock-icon" title="Undo string (Z)" aria-label="Undo string"></button>
+        <button id="btn-clear" class="btn-dock-icon" title="Clear strings (C)" aria-label="Clear all strings"></button>
+        <button id="btn-record-clip" class="btn-dock-icon" title="Record 10-second video take" aria-label="Record video clip"></button>
+        <button id="btn-share" class="btn-dock-icon" title="Copy shareable stage link" aria-label="Share stage link"></button>
+      </div>
+    </nav>
+
+    <!-- Loop Station Timeline -->
+    <div id="loop-bar" class="loop-bar hidden" aria-label="Loop progress">
+      <div id="loop-playhead" class="loop-playhead"></div>
+      <div id="loop-ticks-container" class="loop-ticks-container"></div>
+      <button id="btn-loop-clear" class="btn-loop-clear">Clear loop</button>
+    </div>
+  </div>
+
+  <!-- Sound Sheet (Sliding from Top Center) -->
+  <div id="sound-sheet-backdrop" class="sheet-backdrop hidden"></div>
+  <aside id="sound-sheet" class="sound-sheet hidden" aria-label="Sound settings sheet">
+    <div class="sheet-header">
+      <h2 class="sheet-title">Sound</h2>
+      <button id="btn-close-sound" class="btn-sheet-close" aria-label="Close sound sheet"></button>
+    </div>
+
+    <!-- Instrument Cards List -->
+    <div class="sheet-section">
+      <span class="sheet-section-label">Instrument</span>
+      <div id="instrument-cards-list" class="instrument-cards"></div>
+    </div>
+
+    <!-- Key & Scale Pickers -->
+    <div class="sheet-section">
+      <span class="sheet-section-label">Key &amp; scale</span>
+      <div id="picker-key-row" class="segmented-row"></div>
+      <div id="picker-scale-row" class="segmented-row" style="margin-top: 8px;"></div>
+    </div>
+
+    <!-- Groove & Tempo -->
+    <div class="sheet-section">
+      <span class="sheet-section-label">Groove</span>
+      <div id="picker-groove-row" class="segmented-row"></div>
+
+      <div class="slider-row" style="margin-top: 12px;">
+        <div class="slider-label-row">
+          <span>Tempo</span>
+          <span id="tempo-val" class="slider-val">80 BPM</span>
+        </div>
+        <input type="range" id="slider-tempo" class="range-slider" min="60" max="120" step="1" value="80">
+      </div>
+
+      <div class="switch-row" style="margin-top: 12px;">
+        <label for="toggle-tidy-timing">Tidy timing</label>
+        <input type="checkbox" id="toggle-tidy-timing" checked>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Songs Library Sheet -->
+  <div id="songs-sheet-backdrop" class="sheet-backdrop hidden"></div>
+  <aside id="songs-sheet" class="songs-sheet hidden" aria-label="Songs learning library">
+    <div class="sheet-header">
+      <div class="songs-header-left">
+        <h2 class="sheet-title">Songs</h2>
+        <div class="songs-difficulty-toggle">
+          <button class="song-mode-tab active" data-songmode="Learn">Learn</button>
+          <button class="song-mode-tab" data-songmode="Rhythm">Rhythm</button>
+        </div>
+      </div>
+      <button id="btn-close-songs" class="btn-sheet-close" aria-label="Close songs"></button>
+    </div>
+
+    <div id="songs-list" class="songs-list"></div>
+  </aside>
+
+  <!-- Challenge End Card Modal -->
+  <div id="challenge-end-modal" class="modal-backdrop hidden" aria-modal="true" role="dialog">
+    <div class="challenge-end-card">
+      <span class="end-card-eyebrow">Round complete</span>
+      <div id="end-card-score" class="end-card-score">0</div>
+
+      <div class="end-card-grid">
+        <div class="end-stat">
+          <span class="end-stat-label">Best combo</span>
+          <span id="end-stat-combo" class="end-stat-val">x0</span>
+        </div>
+        <div class="end-stat">
+          <span class="end-stat-label">Accuracy</span>
+          <span id="end-stat-accuracy" class="end-stat-val">0%</span>
+        </div>
+      </div>
+
+      <div id="end-card-hook" class="end-card-hook">Try to beat your best on the next round.</div>
+
+      <button id="btn-challenge-restart" class="btn-primary" style="width: 100%;">Go again</button>
+    </div>
+  </div>
+
+  <!-- Menu Drawer (Right-Side 340px) -->
+  <div id="menu-backdrop" class="sheet-backdrop hidden"></div>
+  <aside id="menu-drawer" class="menu-drawer hidden" aria-label="Settings and collected items">
+    <div class="drawer-header">
+      <h2 class="sheet-title">Menu</h2>
+      <button id="btn-close-menu" class="btn-sheet-close" aria-label="Close menu"></button>
+    </div>
+
+    <div class="drawer-scroll">
+      <!-- Section: Sound -->
+      <section class="drawer-section">
+        <h3 class="drawer-heading">Sound</h3>
+
+        <div class="slider-row">
+          <div class="slider-label-row">
+            <span>Master volume</span>
+            <span id="val-master-volume" class="slider-val">80%</span>
+          </div>
+          <input type="range" id="slider-master-volume" class="range-slider" min="0" max="1" step="0.05" value="0.8">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label-row">
+            <span>Reverb</span>
+            <span id="val-reverb" class="slider-val">25%</span>
+          </div>
+          <input type="range" id="slider-reverb" class="range-slider" min="0" max="0.8" step="0.05" value="0.25">
+        </div>
+
+        <div class="switch-row">
+          <label for="toggle-drone-pad">Root drone pad</label>
+          <input type="checkbox" id="toggle-drone-pad">
+        </div>
+      </section>
+
+      <!-- Section: Look -->
+      <section class="drawer-section">
+        <h3 class="drawer-heading">Look</h3>
+
+        <div class="slider-row">
+          <div class="slider-label-row">
+            <span>Camera video dim</span>
+            <span id="val-video-dim" class="slider-val">75%</span>
+          </div>
+          <input type="range" id="slider-video-dim" class="range-slider" min="0" max="1" step="0.05" value="0.75">
+        </div>
+
+        <div class="switch-row">
+          <label for="toggle-note-names">Show note names on strings</label>
+          <input type="checkbox" id="toggle-note-names" checked>
+        </div>
+
+        <div class="switch-row">
+          <label for="toggle-show-stats">Show telemetry stats</label>
+          <input type="checkbox" id="toggle-show-stats">
+        </div>
+
+        <div class="switch-row">
+          <button id="btn-fullscreen-drawer" class="btn-text-action">Toggle full screen</button>
+        </div>
+      </section>
+
+      <!-- Section: Hands -->
+      <section class="drawer-section">
+        <h3 class="drawer-heading">Hands</h3>
+
+        <div class="switch-row">
+          <label for="toggle-show-skeleton">Show hand skeleton</label>
+          <input type="checkbox" id="toggle-show-skeleton" checked>
+        </div>
+
+        <div class="switch-row">
+          <label for="toggle-all-fingers">Pluck with all fingers</label>
+          <input type="checkbox" id="toggle-all-fingers" checked>
+        </div>
+      </section>
+
+      <!-- Section: Keyboard -->
+      <section class="drawer-section">
+        <h3 class="drawer-heading">Keyboard</h3>
+        <div class="keyboard-grid">
+          <div class="key-row"><kbd>Space</kbd><span>Mute or unmute</span></div>
+          <div class="key-row"><kbd>Z</kbd><span>Undo latest string</span></div>
+          <div class="key-row"><kbd>C</kbd><span>Clear all strings</span></div>
+          <div class="key-row"><kbd>H</kbd><span>Toggle hand skeleton</span></div>
+          <div class="key-row"><kbd>F</kbd><span>Toggle full screen</span></div>
+          <div class="key-row"><kbd>?</kbd><span>Open keyboard help</span></div>
+          <div class="key-row"><kbd>Esc</kbd><span>Close open sheets</span></div>
+        </div>
+      </section>
+
+      <!-- Section: Collected -->
+      <section class="drawer-section">
+        <h3 class="drawer-heading">Collected</h3>
+
+        <div class="collected-stats-row">
+          <div class="c-stat">
+            <span id="collected-streak" class="c-stat-val">1</span>
+            <span class="c-stat-label">Days streak</span>
+          </div>
+          <div class="c-stat">
+            <span id="collected-plucks" class="c-stat-val">0</span>
+            <span class="c-stat-label">Total plucks</span>
+          </div>
+          <div class="c-stat">
+            <span id="collected-best-score" class="c-stat-val">0</span>
+            <span class="c-stat-label">Best score</span>
+          </div>
+        </div>
+
+        <div id="achievements-list" class="achievements-list"></div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- Start Screen (Real string canvas runs in background) -->
+  <div id="start-screen" class="start-screen">
+    <div class="start-content">
+      <span class="start-wordmark">Air Harp</span>
+      <h1 class="start-headline">Play the air.</h1>
+      <p class="start-description">Stretch a string between your hands, then pluck it. Your webcam is the instrument.</p>
+
+      <div class="start-illustrations">
+        <div class="illustration-col">
+          <div class="illustration-icon" id="icon-pinch"></div>
+          <span class="illustration-caption">Pinch with both hands</span>
+        </div>
+        <div class="illustration-col">
+          <div class="illustration-icon" id="icon-open"></div>
+          <span class="illustration-caption">Release to anchor</span>
+        </div>
+        <div class="illustration-col">
+          <div class="illustration-icon" id="icon-flick"></div>
+          <span class="illustration-caption">Flick a finger to pluck</span>
+        </div>
+      </div>
+
+      <button id="btn-start-camera" class="btn-primary start-cta">
+        Turn on camera
+      </button>
+
+      <div id="start-returning-line" class="start-returning-line hidden"></div>
+      <div class="start-notes">
+        <span>Your video stays in this browser.</span>
+        <span>Works best in Chrome on a laptop.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera Error Banner -->
+  <div id="camera-error-banner" class="camera-error-banner hidden">
+    <span id="camera-error-text">The camera is blocked. Allow it in the address bar, then try again.</span>
+    <button id="btn-camera-retry" class="btn-secondary">Try again</button>
+  </div>
+
+  <!-- Toast (Max one at a time, bottom-center above dock) -->
+  <div id="toast" class="toast hidden" aria-live="polite"></div>
+
+</body>
+</html>
